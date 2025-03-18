@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>행사정보조회 (searchFestival)</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background: #f9f9f9; 
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 20px auto; 
+      padding: 20px; 
+      background: #fff; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+    }
+    h1 { 
+      text-align: center; 
+    }
+    form { 
+      display: flex; 
+      flex-direction: column; 
+    }
+    label { 
+      margin-top: 10px; 
+    }
+    input[type="text"],
+    input[type="date"] { 
+      padding: 10px; 
+      margin-top: 5px; 
+      border: 1px solid #ccc; 
+      border-radius: 4px; 
+    }
+    button { 
+      margin-top: 15px; 
+      padding: 10px; 
+      background: #007BFF; 
+      color: #fff; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+    }
+    button:hover { 
+      background: #0056b3; 
+    }
+    .result { 
+      margin-top: 20px; 
+    }
+    .event { 
+      border: 1px solid #ccc; 
+      border-radius: 4px; 
+      padding: 15px; 
+      margin-bottom: 15px; 
+      background: #fafafa; 
+    }
+    .event h3 { 
+      margin-top: 0; 
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>행사정보조회 (searchFestival)</h1>
+    <form id="searchForm">
+      <!-- 지역코드는 숫자로 입력해야 합니다 (예: 1=서울, 6=부산 등) -->
+      <label for="region">지역코드 (숫자)</label>
+      <input type="text" id="region" name="region" placeholder="예: 1 (서울), 6 (부산)" required>
+
+      <!-- 날짜는 YYYY-MM-DD 형식으로 입력 -->
+      <label for="date">시작 날짜</label>
+      <input type="date" id="date" name="date" required>
+
+      <button type="button" onclick="displayFestivalData()">행사보기</button>
+    </form>
+    <div id="results" class="result"></div>
+  </div>
+
+  <script>
+    /**
+     * 'YYYY-MM-DD' -> 'YYYYMMDD'로 변환하는 헬퍼 함수
+     */
+    function formatDateToYYYYMMDD(dateString) {
+      return dateString.replace(/-/g, '');
+    }
+
+    /**
+     * 시작일(date)부터 7일 뒤를 endDate로 계산해주는 함수
+     * 필요 시 기간을 조정해서 사용하세요.
+     */
+    function getEndDateYYYYMMDD(startDateString) {
+      const startDate = new Date(startDateString); 
+      const endDate = new Date(startDate.getTime() + (7 * 24 * 60 * 60 * 1000)); // 7일 뒤
+
+      const yyyy = endDate.getFullYear();
+      const mm = String(endDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(endDate.getDate()).padStart(2, '0');
+
+      return `${yyyy}${mm}${dd}`;
+    }
+
+    /**
+     * 한국관광공사 행사정보조회 (searchFestival) API 호출
+     * areaCode(지역코드), 시작날짜(YYYY-MM-DD)를 받아서,
+     * 시작일 ~ 7일 뒤(eventEndDate)까지 행사 정보를 가져옴
+     */
+    async function fetchFestivalData(areaCode, startDate) {
+      try {
+        // 이미지에서 받은 인코딩된 인증키 (URL 인코딩 상태)
+        const serviceKey = "T4Sg1xih5MPDFZUhks0zr%2B9tjThk%2BDD%2BMsUGB6lhB7xmEKfbwEn0j75nOCqsY%2B1TGNGxcYxHP83xdyEN9wtiWw%3D%3D";
+        // 이미지에서 확인한 기본 URL + searchFestival
+        const endpoint = "https://apis.data.go.kr/B551011/KorService1/searchFestival1";
+
+        // 날짜 변환 (YYYY-MM-DD -> YYYYMMDD)
+        const eventStartDate = formatDateToYYYYMMDD(startDate);
+        const eventEndDate = getEndDateYYYYMMDD(startDate);
+
+        // API 파라미터 설정
+        const params = new URLSearchParams({
+          serviceKey: serviceKey,
+          MobileApp: "AppTest",    // 임의 앱 이름
+          MobileOS: "ETC",         // OS 구분 (ETC/IOS/AND)
+          pageNo: "1",
+          numOfRows: "10",
+          arrange: "A",            // A=제목순, B=조회순 등
+          listYN: "Y",
+          areaCode: areaCode,      // 사용자 입력값 (지역코드)
+          eventStartDate: eventStartDate,
+          eventEndDate: eventEndDate,
+          _type: "json"
+        });
+
+        // 최종 요청 URL
+        const url = `${endpoint}?${params.toString()}`;
+        console.log("요청 URL:", url);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error("API 요청 실패: " + response.status);
+        }
+
+        // 응답을 JSON으로 파싱
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("데이터를 가져오는 중 오류:", error);
+        return null;
+      }
+    }
+
+    /**
+     * 사용자가 입력한 값으로 API를 호출하고 결과를 표시
+     */
+    async function displayFestivalData() {
+      const region = document.getElementById("region").value;  // 지역코드
+      const date = document.getElementById("date").value;      // YYYY-MM-DD
+
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "<p>데이터를 불러오는 중입니다...</p>";
+
+      // API 호출
+      const data = await fetchFestivalData(region, date);
+
+      // API 호출 실패 또는 에러
+      if (!data) {
+        resultsDiv.innerHTML = "<p>데이터를 불러오지 못했습니다.</p>";
+        return;
+      }
+
+      // 응답 구조는 문서에 따라 다릅니다. 일반적으로 data.response.body.items.item 배열에 결과가 있습니다.
+      let items = [];
+      try {
+        items = data.response.body.items.item;
+      } catch (e) {
+        console.error("데이터 파싱 오류:", e);
+      }
+
+      if (!items || items.length === 0) {
+        resultsDiv.innerHTML = "<p>조회 결과가 없습니다.</p>";
+        return;
+      }
+
+      // 결과 HTML 구성
+      let html = "<h2>조회 결과</h2>";
+      items.forEach(item => {
+        html += "<div class='event'>";
+        // 대표적으로 title, eventstartdate, eventenddate, addr1, firstimage 등이 존재할 수 있음
+        html += `<h3>${item.title || "행사 제목"}</h3>`;
+        html += `<p><strong>시작일:</strong> ${item.eventstartdate || "정보 없음"}</p>`;
+        html += `<p><strong>종료일:</strong> ${item.eventenddate || "정보 없음"}</p>`;
+        // 필요하면 주소나 이미지, 소개문구 등을 추가
+        html += "</div>";
+      });
+
+      // 표시
+      resultsDiv.innerHTML = html;
+    }
+  </script>
+</body>
+</html>
